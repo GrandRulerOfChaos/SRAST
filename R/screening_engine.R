@@ -34,11 +34,46 @@ screen_reference <- function(reference_row,
     paste0(
       "UPDATE references ",
       "SET screening_status = 'screened', ",
-      "decision = ? ",
+      "decision = ?, ",
+      "confidence = ? ",
       "WHERE id = ?"
     ),
-    params = list(verdict, reference_row$id)
+    params = list(
+      verdict,
+      min(answers_df$confidence),
+      reference_row$id
+    )
   )
 
-  return(verdict)
+  return(list(
+    reference_id = reference_row$id,
+    verdict = verdict,
+    confidence = min(answers_df$confidence),
+    answers = answers_df
+  ))
+}
+
+screen_reference_batch <- function(references_df,
+                                   protocol,
+                                   llm_callback,
+                                   con,
+                                   model_name = "unknown") {
+
+  batch_results <- vector("list", nrow(references_df))
+
+  for (i in seq_len(nrow(references_df))) {
+    reference_row <- references_df[i, ]
+
+    llm_response <- llm_callback(reference_row, protocol)
+
+    batch_results[[i]] <- screen_reference(
+      reference_row = reference_row,
+      protocol = protocol,
+      llm_response = llm_response,
+      con = con,
+      model_name = model_name
+    )
+  }
+
+  batch_results
 }
